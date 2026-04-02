@@ -1,7 +1,3 @@
-use sqlx::PgPool;
-use time::OffsetDateTime;
-use uuid::Uuid;
-
 mod common;
 use crate::common::spawn_app;
 
@@ -13,8 +9,8 @@ async fn health_check_works() {
         .await
         .expect("failed to execute request");
 
-    assert!(response.status().is_success());
-    assert_eq!(Some(0), response.content_length());
+    claim::assert!(response.status().is_success());
+    claim::assert_eq!(Some(0), response.content_length());
 }
 
 #[tokio::test]
@@ -36,7 +32,7 @@ async fn subscribe_returns_a_400_when_data_is_missing() {
             .await
             .expect("Failed to execute request.");
 
-        assert_eq!(
+        claim::assert_eq!(
             422,
             response.status().as_u16(),
             "The API did not fail with 400 Bad Request when the payload was {}.",
@@ -59,7 +55,7 @@ async fn subscribe_returns_a_200_for_valid_form_data_v2() -> Result<(), sqlx::Er
         .await
         .expect("Failed to execute request.");
 
-    assert_eq!(200, response.status().as_u16());
+    claim::assert_eq!(200, response.status().as_u16());
 
     // Query the database to check the subscription was saved
 
@@ -70,7 +66,36 @@ async fn subscribe_returns_a_200_for_valid_form_data_v2() -> Result<(), sqlx::Er
     .fetch_one(&app.db_pool)
     .await?;
 
-    assert_eq!(saved.email, "ursula_le_guin@gmail.com");
-    assert_eq!(saved.name, "le guin");
+    claim::assert_eq!(saved.email, "ursula_le_guin@gmail.com");
+    claim::assert_eq!(saved.name, "le guin");
     Ok(())
+}
+
+#[tokio::test]
+async fn subscribe_returns_a_200_when_fields_are_present_but_empty() {
+    //Arrange
+    let app = spawn_app().await;
+    let client = reqwest::Client::new();
+    let test_cases = vec![
+        ("name=&email=ursula_le_guin%40gmail.com", "emptyname"),
+        ("name=Ursula&email=", "emptyemail"),
+        ("name=Ursula&email=definitely-not-an-email", "invalidemail"),
+    ];
+    for (body, description) in test_cases {
+        //Act
+        let response = client
+            .post(&format!("{}/subscriptions", &app.address))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(body)
+            .send()
+            .await
+            .expect("Failed to execute request.");
+        //Assert
+        claim::assert_eq!(
+            200,
+            response.status().as_u16(),
+            "The API did not return a 200 OK when the payload was {}.",
+            description
+        );
+    }
 }

@@ -1,10 +1,11 @@
+use lettro::telemetry::{get_subscriber, init_subscriber};
 use lettro::{DatabaseSettings, get_configuration, startup::run};
+use once_cell::sync::Lazy;
+use secrecy::ExposeSecret;
+use sqlx::Connection;
 use sqlx::{PgConnection, PgPool};
 use tokio::net::TcpListener;
 use uuid::Uuid;
-use sqlx::Connection;
-use lettro::telemetry::{init_subscriber, get_subscriber};
-use once_cell::sync::Lazy;
 
 pub struct TestApp {
     pub address: String,
@@ -12,14 +13,21 @@ pub struct TestApp {
 }
 
 static TRACER: Lazy<()> = Lazy::new(|| {
-    let tracer = get_subscriber("test".into(), "debug".into());
-    init_subscriber(tracer);
+    let default_filter_level = "debug".to_string();
+    let subscriber_name = "test".to_string();
+
+    if std::env::var("TEST_LOG").is_ok() {
+        let tracer = get_subscriber(subscriber_name, default_filter_level, std::io::stdout);
+        init_subscriber(tracer);
+    } else {
+        let tracer = get_subscriber(subscriber_name, default_filter_level, std::io::sink);
+        init_subscriber(tracer);
+    }
 });
 
 pub async fn spawn_app() -> TestApp {
-    
     Lazy::force(&TRACER);
-    
+
     let mut config = get_configuration().expect("Failedtoreadconfiguration.");
     config.database.database_name = Uuid::new_v4().to_string();
 
@@ -42,7 +50,7 @@ pub async fn spawn_app() -> TestApp {
 
 pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
     //Createdatabase
-    let mut connection = PgConnection::connect(&config.connection_string_with_db())
+    let mut connection = PgConnection::connect(&config.connection_string_with_db().expose_secret())
         .await
         .expect("Failed to connect to Postgres");
 
@@ -50,9 +58,9 @@ pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
         .execute(&mut connection)
         .await
         .expect("Failed to create database.");
-    
+
     //Migratedatabase
-    let connection_pool = PgPool::connect(&config.connection_string())
+    let connection_pool = PgPool::connect(&config.connection_string().expose_secret())
         .await
         .expect("Failed to connect to Postgres");
     sqlx::migrate!("./migrations")
