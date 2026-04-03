@@ -1,4 +1,8 @@
-use crate::domain::{subscriber_name::SubscriberName, new_subscriber::NewSubscriber};
+use crate::domain::{
+    new_subscriber::NewSubscriber,
+    subscriber_email::SubscriberEmail,
+    subscriber_name::SubscriberName,
+};
 use crate::startup::AppState;
 use axum::{
     extract::{Form, State},
@@ -10,52 +14,56 @@ use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
 pub struct FormData {
-    pub name: String, 
+    pub name: String,
     pub email: String,
+}
+
+impl TryFrom<FormData> for NewSubscriber {
+    type Error = String;
+
+    fn try_from(value: FormData) -> Result<Self, Self::Error> {
+        let name = SubscriberName::parse(value.name)?;
+        let email = SubscriberEmail::parse(value.email)?;
+        Ok(Self { email, name })
+    }
 }
 
 #[tracing::instrument(
     name = "Adding a new subscriber",
-    skip(state),
+    skip(pool),
     fields(
         subscriber_email = %form.email,
         subscriber_name = %form.name,
     )
 )]
 pub async fn subscribe(
-    State(state): State<AppState>,
+    State(pool): State<AppState>,
     Form(form): Form<FormData>,
 ) -> impl IntoResponse {
-
-    let name = match SubscriberName::parse(form.name) {
-        Ok(name) => name,
-        Err(_) => return StatusCode::BAD_REQUEST,
+    let new_subscriber: NewSubscriber = match form.try_into() {
+        Ok(subscriber) => subscriber,
+        Err(_) => return StatusCode::BAD_REQUEST.into_response(),
     };
 
-    let new_subscriber = NewSubscriber {
-        email: form.email,
-        name,  
-    };
-
-    match insert_subscriber(&state, &new_subscriber).await {
-        Ok(_) => StatusCode::OK,
-        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    match insert_subscriber(&pool, &new_subscriber).await {
+        Ok(_) => StatusCode::OK.into_response(),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     }
 }
 
-#[tracing::instrument(name = "Saving subscriber to database", skip(state, new_subscriber))]
+#[tracing::instrument(name = "Saving subscriber to database", skip(pool, new_subscriber))]
 async fn insert_subscriber(
-    state: &AppState,
+    pool: &AppState,
     new_subscriber: &NewSubscriber,
 ) -> Result<(), sqlx::Error> {
     sqlx::query!(
         "INSERT INTO subscriptions (id, name, email, subscribed_at) VALUES ($1, $2, $3, $4)",
         Uuid::new_v4(),
-        new_subscriber.name.as_ref(), 
-        new_subscriber.email,
+        new_subscriber.name.as_ref(),
+        new_subscriber.email.as_ref(),
         time::OffsetDateTime::now_utc(),
     )
-    .execute(&state.connection)
+    .execute(&pool.connection)
     .await
     .map_err(|e| {
         tracing::error!("Failed to execute query: {:?}", e);

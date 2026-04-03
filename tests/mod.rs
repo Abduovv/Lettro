@@ -9,8 +9,8 @@ async fn health_check_works() {
         .await
         .expect("failed to execute request");
 
-    claim::assert!(response.status().is_success());
-    claim::assert_eq!(Some(0), response.content_length());
+    assert!(response.status().is_success());
+    assert_eq!(Some(0), response.content_length());
 }
 
 #[tokio::test]
@@ -32,7 +32,7 @@ async fn subscribe_returns_a_400_when_data_is_missing() {
             .await
             .expect("Failed to execute request.");
 
-        claim::assert_eq!(
+        assert_eq!(
             422,
             response.status().as_u16(),
             "The API did not fail with 400 Bad Request when the payload was {}.",
@@ -55,7 +55,7 @@ async fn subscribe_returns_a_200_for_valid_form_data_v2() -> Result<(), sqlx::Er
         .await
         .expect("Failed to execute request.");
 
-    claim::assert_eq!(200, response.status().as_u16());
+    assert_eq!(200, response.status().as_u16());
 
     // Query the database to check the subscription was saved
 
@@ -66,8 +66,8 @@ async fn subscribe_returns_a_200_for_valid_form_data_v2() -> Result<(), sqlx::Er
     .fetch_one(&app.db_pool)
     .await?;
 
-    claim::assert_eq!(saved.email, "ursula_le_guin@gmail.com");
-    claim::assert_eq!(saved.name, "le guin");
+    assert_eq!(saved.email, "ursula_le_guin@gmail.com");
+    assert_eq!(saved.name, "le guin");
     Ok(())
 }
 
@@ -91,7 +91,7 @@ async fn subscribe_returns_a_200_when_fields_are_present_but_empty() {
             .await
             .expect("Failed to execute request.");
         //Assert
-        claim::assert_eq!(
+        assert_eq!(
             200,
             response.status().as_u16(),
             "The API did not return a 200 OK when the payload was {}.",

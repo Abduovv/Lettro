@@ -6,3 +6,4 @@ pub use crate::routes::{health_check, subscribe};
 pub use crate::startup::*;
 pub mod domain;
 pub mod telemetry;
+pub mod email_client;

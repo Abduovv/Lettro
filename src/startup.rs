@@ -1,3 +1,4 @@
+use crate::email_client::EmailClient;
 use crate::routes::{health_check, subscribe};
 use anyhow::Result;
 use axum::{
@@ -13,10 +14,12 @@ use tower_http::request_id::{
 };
 use tower_http::trace::TraceLayer;
 use uuid::Uuid;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct AppState {
     pub connection: PgPool,
+    pub email_client: EmailClient,
 }
 
 #[derive(Clone)]
@@ -30,11 +33,17 @@ impl MakeRequestId for MakeRequestUuid {
     }
 }
 
-pub async fn run(listener: TcpListener, connection: PgPool) -> Result<()> {
+pub async fn run(
+    listener: TcpListener,
+    connection: PgPool,
+    email_client: EmailClient,
+) -> Result<()> {
+    
+    let shared_state = Arc::new(AppState { connection, email_client });
     let app = Router::new()
         .route("/health_check", get(health_check))
         .route("/subscriptions", post(subscribe))
-        .with_state(AppState { connection })
+        .with_state(shared_state)
         .layer(
             ServiceBuilder::new()
                 .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))

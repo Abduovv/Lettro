@@ -3,6 +3,7 @@ use lettro::telemetry;
 use secrecy::ExposeSecret;
 use sqlx::PgPool;
 use tokio::net::TcpListener;
+use lettro::email_client::EmailClient;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -16,6 +17,6 @@ async fn main() -> std::io::Result<()> {
         .expect("Failed to connect to Postgres");
 
     let listener = TcpListener::bind(format!("127.0.0.1:{}", config.application_port)).await?;
-    run(listener, pool).await.expect("Failed to run the server");
+    run(listener, pool, EmailClient::new()).await.expect("Failed to run the server");
     Ok(())
 }

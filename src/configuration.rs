@@ -4,6 +4,7 @@ use secrecy::{ExposeSecret, SecretString};
 pub struct Settings {
     pub database: DatabaseSettings,
     pub application_port: u16,
+    pub email_client: EmailClientSettings
 }
 
 #[derive(serde::Deserialize)]
@@ -13,6 +14,13 @@ pub struct DatabaseSettings {
     pub port: u16,
     pub host: String,
     pub database_name: String,
+}
+
+#[derive(Deserialize)]
+pub struct EmailClientSettings {
+    pub base_url: String,
+    pub sender_email: String,
+    pub authorization_token: secrecy::Secret<String>,
 }
 
 pub fn get_configuration() -> Result<Settings, config::ConfigError> {

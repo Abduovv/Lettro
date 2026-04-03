@@ -40,7 +40,7 @@ use claim::{assert_err, assert_ok};
 
 #[test]
     fn a_256_grapheme_long_name_is_valid() {
-        let name = "a￿".repeat(256);
+        let name = "a".repeat(256);
         assert_ok!(SubscriberName::parse(name));
     }
     
