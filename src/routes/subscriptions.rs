@@ -1,6 +1,5 @@
 use crate::domain::{
-    new_subscriber::NewSubscriber,
-    subscriber_email::SubscriberEmail,
+    new_subscriber::NewSubscriber, subscriber_email::SubscriberEmail,
     subscriber_name::SubscriberName,
 };
 use crate::startup::AppState;

@@ -1,7 +1,10 @@
+use fake::{Fake, Faker};
+use lettro::email_client::EmailClient;
 use lettro::telemetry::{get_subscriber, init_subscriber};
 use lettro::{DatabaseSettings, get_configuration, startup::run};
 use once_cell::sync::Lazy;
 use secrecy::ExposeSecret;
+use secrecy::SecretString;
 use sqlx::Connection;
 use sqlx::{PgConnection, PgPool};
 use tokio::net::TcpListener;
@@ -38,7 +41,18 @@ pub async fn spawn_app() -> TestApp {
         .expect("failed to bind random port");
 
     let port = listener.local_addr().unwrap().port();
-    let server = run(listener, connection_pool.clone());
+    let sender_email = config
+        .email_client
+        .sender()
+        .expect("Invalid sender email address");
+    let email_client = EmailClient::new(
+        config.email_client.base_url.clone(),
+        sender_email,
+        SecretString::new(Faker.fake::<String>().into_boxed_str()),
+        config.email_client.timeout(),
+    );
+
+    let server = run(listener, connection_pool.clone(), email_client);
 
     tokio::spawn(server);
 

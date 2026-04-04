@@ -1,6 +1,6 @@
 use validator::ValidateEmail;
-    
-#[derive(Debug)]
+
+#[derive(Debug, Clone)]
 pub struct SubscriberEmail(String);
 
 impl SubscriberEmail {
@@ -20,11 +20,11 @@ impl AsRef<str> for SubscriberEmail {
 }
 
 #[cfg(test)]
-mod tests{
+mod tests {
     use super::SubscriberEmail;
     use claim::assert_err;
-    use fake::faker::internet::en::SafeEmail;
     use fake::Fake;
+    use fake::faker::internet::en::SafeEmail;
 
     #[test]
     fn empty_string_is_rejected() {
@@ -43,12 +43,12 @@ mod tests{
         let email = "@domain.com".to_string();
         assert_err!(SubscriberEmail::parse(email));
     }
-    
+
     use quickcheck::{Arbitrary, Gen};
-    
+
     #[derive(Debug, Clone)]
     struct ValidEmailFixture(pub String);
-    
+
     impl Arbitrary for ValidEmailFixture {
         fn arbitrary(_g: &mut Gen) -> Self {
             // Just generate a random safe email, no need to use g
@@ -57,13 +57,8 @@ mod tests{
         }
     }
 
-
-
-    use quickcheck_macros::quickcheck;
-    
-    #[quickcheck]
+    #[quickcheck_macros::quickcheck]
     fn valid_emails_are_parsed_successfully(email: ValidEmailFixture) -> bool {
         SubscriberEmail::parse(email.0).is_ok()
     }
-
 }

@@ -7,6 +7,7 @@ database:
   database_name: "newsletter"
 
 email_client:
-  base_url: "https://api.postmarkapp.com"
-  sender_email: "newsletter@yourdomain.com"
-  authorization_token: "your-postmark-token"
+  base_url: "localhost"
+  sender_email: "newsletter@gmail.com"
+  authorization_token: "dump"
+  timeout_milliseconds: 10000
