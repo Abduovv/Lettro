@@ -1,3 +1,4 @@
+use lettro::email_client::EmailClient;
 use lettro::startup::{Application, get_connection_pool};
 use lettro::telemetry::{get_subscriber, init_subscriber};
 use lettro::{DatabaseSettings, get_configuration};
@@ -12,17 +13,48 @@ pub struct TestApp {
     pub address: String,
     pub db_pool: PgPool,
     pub mock_server: MockServer,
+    pub email_client: EmailClient,
+    pub port: u16,
+}
+
+pub struct ConfirmationLinks {
+    pub html: reqwest::Url,
+    pub plain_text: reqwest::Url,
 }
 
 impl TestApp {
     pub async fn post_subscription(&self, body: String) -> reqwest::Response {
         reqwest::Client::new()
-            .post(&format!("http://{}/subscriptions", self.address))
+            .post(&format!("{}/subscriptions", self.address))
             .header("Content-Type", "application/x-www-form-urlencoded")
             .body(body)
             .send()
             .await
             .expect("Failed to send request")
+    }
+
+    pub async fn get_confirmation_links(
+        &self,
+        email_request: &wiremock::Request,
+    ) -> ConfirmationLinks {
+        let body: serde_json::Value = serde_json::from_slice(&email_request.body).unwrap();
+
+        let get_link = |s: &str| {
+            let links: Vec<_> = linkify::LinkFinder::new()
+                .links(s)
+                .filter(|l| *l.kind() == linkify::LinkKind::Url)
+                .collect();
+            assert_eq!(links.len(), 1);
+            let raw_link = links[0].as_str().to_owned();
+            let mut confirmation_link = reqwest::Url::parse(&raw_link).unwrap();
+            // Let's makesure we don't call random APIs on the web
+            assert_eq!(confirmation_link.host_str().unwrap(), "127.0.0.1");
+            confirmation_link.set_port(Some(self.port)).unwrap();
+            confirmation_link
+        };
+        let html = get_link(&body["HtmlBody"].as_str().unwrap());
+        let plain_text = get_link(&body["TextBody"].as_str().unwrap());
+        ConfirmationLinks { html, plain_text }
     }
 }
 
@@ -41,18 +73,17 @@ static TRACER: Lazy<()> = Lazy::new(|| {
 
 pub async fn spawn_app() -> TestApp {
     Lazy::force(&TRACER);
-    
+
     let mock_server = MockServer::start().await;
 
     let config = {
         let mut c = get_configuration().expect("Failed to read configuration.");
         c.database.database_name = Uuid::new_v4().to_string();
-        c.application_port = 0;
+        c.application.port = 0;
         c.email_client.base_url = mock_server.uri();
         c
     };
 
-    // ✅ Create & migrate the DB FIRST
     configure_database(&config.database).await;
 
     let app = Application::build(config.clone())
@@ -63,9 +94,11 @@ pub async fn spawn_app() -> TestApp {
     let _ = tokio::spawn(app.run_until_stopped());
 
     TestApp {
-        address: format!("127.0.0.1:{}", port),
+        address: format!("http://127.0.0.1:{}", port),
         db_pool: get_connection_pool(&config.database),
         mock_server,
+        email_client: config.email_client.client(),
+        port,
     }
 }
 

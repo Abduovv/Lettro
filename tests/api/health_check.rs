@@ -4,7 +4,7 @@ use crate::helpers::spawn_app;
 async fn health_check_works() {
     let app = spawn_app().await;
 
-    let response = reqwest::get(&format!("http://{}/health_check", app.address))
+    let response = reqwest::get(&format!("{}/health_check", app.address))
         .await
         .expect("failed to execute request");
 

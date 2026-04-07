@@ -1,5 +1,6 @@
 use crate::configuration::{DatabaseSettings, Settings};
 use crate::email_client::EmailClient;
+use crate::routes::subscriptions_confirm::confirm;
 use crate::routes::{health_check, subscribe};
 use axum::{
     Router,
@@ -15,13 +16,13 @@ use tower_http::request_id::{
 };
 use tower_http::trace::TraceLayer;
 use uuid::Uuid;
-
 // ---------- State ----------
 
 #[derive(Clone)]
 pub struct AppState {
     pub connection: PgPool,
     pub email_client: EmailClient,
+    pub base_url: String,
 }
 
 // ---------- Request ID ----------
@@ -46,26 +47,21 @@ pub struct Application {
 }
 
 impl Application {
-    pub async fn build(configuration: Settings) -> Result<Self, std::io::Error> {
+    pub async fn build(configuration: Settings) -> Result<Self, anyhow::Error> {
         let connection_pool = get_connection_pool(&configuration.database);
+        let email_client = configuration.email_client.client();
 
-        let sender_email = configuration
-            .email_client
-            .sender()
-            .expect("Invalid sender email address.");
-
-        let email_client = EmailClient::new(
-            configuration.email_client.base_url,
-            sender_email,
-            configuration.email_client.authorization_token,
-            std::time::Duration::from_secs(5),
+        let address = format!(
+            "{}:{}",
+            configuration.application.host, configuration.application.port
         );
-
-        let address = format!("127.0.0.1:{}", configuration.application_port);
-
-        let listener = TcpListener::bind(&address).await?;
+        let listener = TcpListener::bind(address).await?;
         let port = listener.local_addr().unwrap().port();
-        let app = build_router(connection_pool, email_client);
+        let app = run(
+            connection_pool,
+            email_client,
+            configuration.application.base_url,
+        );
 
         Ok(Self {
             port,
@@ -85,13 +81,15 @@ impl Application {
 
 // ---------- Router ----------
 
-fn build_router(connection: PgPool, email_client: EmailClient) -> Router {
+fn run(connection: PgPool, email_client: EmailClient, base_url: String) -> Router {
     Router::new()
         .route("/health_check", get(health_check))
         .route("/subscriptions", post(subscribe))
+        .route("/subscriptions/confirm", get(confirm))
         .with_state(AppState {
             connection,
             email_client,
+            base_url,
         })
         .layer(
             ServiceBuilder::new()
