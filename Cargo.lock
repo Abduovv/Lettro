@@ -1365,6 +1365,7 @@ dependencies = [
  "serde-aux",
  "serde_json",
  "sqlx",
+ "thiserror 2.0.18",
  "time",
  "tokio",
  "tokio-tungstenite",

@@ -1,7 +1,8 @@
 use crate::configuration::{DatabaseSettings, Settings};
 use crate::email_client::EmailClient;
-use crate::routes::subscriptions_confirm::confirm;
-use crate::routes::{health_check, subscribe};
+use crate::routes::{
+    health_check, newsletter::publish_newsletter, subscribe, subscriptions_confirm::confirm,
+};
 use axum::{
     Router,
     http::Request,
@@ -86,6 +87,7 @@ fn run(connection: PgPool, email_client: EmailClient, base_url: String) -> Route
         .route("/health_check", get(health_check))
         .route("/subscriptions", post(subscribe))
         .route("/subscriptions/confirm", get(confirm))
+        .route("/newsletters", post(publish_newsletter))
         .with_state(AppState {
             connection,
             email_client,
