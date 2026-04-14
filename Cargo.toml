@@ -35,6 +35,8 @@ serde_json = "1.0.149"
 serde-aux = "4.7.0"
 rand = { version = "0.8.0", features = ["std_rng"] }
 thiserror = "2.0.18"
+base64 = "0.13"
+argon2 = { version = "0.5.3", features = ["std"] }
 
 [dev-dependencies]
 httpc = "0.1.3"

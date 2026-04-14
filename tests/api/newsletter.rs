@@ -1,4 +1,5 @@
 use crate::helpers::{ConfirmationLinks, TestApp, spawn_app};
+use uuid::Uuid;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, ResponseTemplate};
 
@@ -92,4 +93,29 @@ async fn newsletters_returns_400_for_invalid_data() {
             error_message
         );
     }
+}
+
+#[tokio::test]
+async fn requests_missing_authorization_are_rejected() {
+    // Arrange
+    let app = spawn_app().await;
+    let response = reqwest::Client::new()
+        .post(&format!("{}/newsletters", &app.address))
+        .basic_auth(Uuid::new_v4().to_string(), Some(Uuid::new_v4().to_string()))
+        .json(&serde_json::json!({
+            "title": "Newsletter title",
+            "content": {
+                "text": "Newsletterbodyasplaintext",
+                "html": "<p>NewsletterbodyasHTML</p>",
+            },
+        }))
+        .send()
+        .await
+        .expect("Failed to execute request.");
+    // Assert
+    assert_eq!(401, response.status().as_u16());
+    assert_eq!(
+        r#"Basicrealm="publish""#,
+        response.headers()["WWW-Authenticate"]
+    );
 }
